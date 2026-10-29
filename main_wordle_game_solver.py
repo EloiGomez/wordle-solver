@@ -1,7 +1,6 @@
 import json
 import random
 from collections import Counter
-from unidecode import unidecode
 
 WORD_LIST = []
 # Load the word list from the JSON file
@@ -16,54 +15,29 @@ spanish = True
 #         word = line.strip()
 #         WORD_LIST.append(unidecode(word))
 
-# Function to filter words based on feedback
+# Feedback that Wordle would give for `guess` if `secret` were the answer
+# ('g' = green, 'y' = yellow, 'r' = gray), with repeated letters handled as in the real game
+def get_feedback(guess, secret):
+    feedback = ['r'] * len(guess)
+    remaining = list(secret)  # secret letters not yet matched
+
+    # First pass: greens use up their letter
+    for i, (g, s) in enumerate(zip(guess, secret)):
+        if g == s:
+            feedback[i] = 'g'
+            remaining[i] = None
+
+    # Second pass: a letter is yellow only while there are unmatched copies in the secret
+    for i, g in enumerate(guess):
+        if feedback[i] == 'r' and g in remaining:
+            feedback[i] = 'y'
+            remaining[remaining.index(g)] = None
+
+    return ''.join(feedback)
+
+# Keep only the words that would have produced exactly this feedback for this guess
 def filter_words(possible_words, guess, feedback):
-    green_letters = {}  # To track letters in green positions
-    yellow_letters = {}  # To track yellow letters (appears, but in different positions)
-    gray_letters = set()  # To track letters that should be excluded
-
-    # Step 1: First pass to collect green and gray positions
-    for i, (color, letter) in enumerate(zip(feedback, guess)):
-        if color == 'g':  # Green, exact match required
-            green_letters[i] = letter
-        elif color == 'r':  # Gray, mark it for exclusion unless in a green/yellow position
-            gray_letters.add(letter)
-
-    # Step 2: Handle yellow letters (they appear in the word but not at their current position)
-    for i, (color, letter) in enumerate(zip(feedback, guess)):
-        if color == 'y':
-            # Add to yellow but make sure it doesn't exist at the current position
-            if letter not in yellow_letters:
-                yellow_letters[letter] = []
-            yellow_letters[letter].append(i)
-
-    # Step 3: Filter words
-    filtered_words = []
-    for word in possible_words:
-        # Check for green positions
-        match = all(word[i] == letter for i, letter in green_letters.items())
-        if not match:
-            continue  # Word doesn't satisfy green letter positions
-
-        # Check yellow letters (must be in word but not in the yellow-marked positions)
-        for letter, positions in yellow_letters.items():
-            if letter not in word:
-                match = False
-                break
-            if any(word[pos] == letter for pos in positions):
-                match = False
-                break
-        if not match:
-            continue  # Word doesn't satisfy yellow letter conditions
-
-        # Check for gray letters (letter must not be in the word unless it's green/yellow)
-        if any(letter in word and letter not in green_letters.values() and letter not in yellow_letters for letter in gray_letters):
-            continue  # Word contains gray letter, which it shouldn't
-
-        # If all conditions are met, add word to the filtered list
-        filtered_words.append(word)
-
-    return filtered_words
+    return [word for word in possible_words if get_feedback(guess, word) == feedback]
 
 # Wordle Solver Function
 def wordle_solver():
