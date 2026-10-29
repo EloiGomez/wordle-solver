@@ -16,6 +16,21 @@ spanish = True
 #         word = line.strip()
 #         WORD_LIST.append(unidecode(word))
 
+# How common each word is: Zipf frequency (log10 of occurrences per billion words) from the wordfreq package,
+# precomputed in word_frequencies.json. Words missing from the file count as 0 (very rare).
+try:
+    with open("word_frequencies.json", "r") as file:
+        FREQUENCIES = json.load(file)
+except FileNotFoundError:
+    FREQUENCIES = {}
+
+# Prior probability that a word is the answer is proportional to 10 ** (FREQ_EXPONENT * zipf):
+# 0 = every word equally likely, 1 = proportional to raw frequency.
+FREQ_EXPONENT = 0.5
+
+def word_weight(word):
+    return 10 ** (FREQ_EXPONENT * FREQUENCIES.get(word, 0))
+
 # Feedback that Wordle would give for `guess` if `secret` were the answer
 # ('g' = green, 'y' = yellow, 'r' = gray), with repeated letters handled as in the real game
 def get_feedback(guess, secret):
@@ -41,20 +56,33 @@ def filter_words(possible_words, guess, feedback):
     return [word for word in possible_words if get_feedback(guess, word) == feedback]
 
 # Expected information (in bits) of a guess: how evenly it splits the candidates into feedback patterns.
-# H = -sum(p * log2(p)), where p is the share of candidates that would give each pattern.
-def entropy_of_guess(guess, candidates):
-    counts = Counter(get_feedback(guess, word) for word in candidates)
-    total = len(candidates)
+# H = -sum(p * log2(p)), where p is the (weighted) share of candidates that would give each pattern.
+# `weights` maps each word to how likely it is to be the answer; without it all words count the same.
+def entropy_of_guess(guess, candidates, weights=None):
+    counts = Counter()
+    for word in candidates:
+        counts[get_feedback(guess, word)] += weights[word] if weights else 1
+    total = sum(counts.values())
     return -sum((n / total) * math.log2(n / total) for n in counts.values())
 
-# Choose the guess with the highest entropy. To keep it fast with large word lists, only a random sample
-# of candidates is tried as guesses and scored against a random sample of possible answers.
-def best_guess(candidates, max_guesses=200, max_targets=1000):
+# Choose the guess with the highest entropy. To keep it fast with large word lists, only some candidates are
+# tried as guesses and scored against some possible answers: with `weight` (a function word -> likelihood)
+# the most likely ones are used, otherwise a random sample.
+def best_guess(candidates, weight=None, max_guesses=200, max_targets=1000):
     if len(candidates) <= 2:
-        return candidates[0]
-    guesses = candidates if len(candidates) <= max_guesses else random.sample(candidates, max_guesses)
-    targets = candidates if len(candidates) <= max_targets else random.sample(candidates, max_targets)
-    return max(guesses, key=lambda g: entropy_of_guess(g, targets))
+        return max(candidates, key=weight) if weight else candidates[0]
+    if weight:
+        ranked = sorted(candidates, key=weight, reverse=True)
+        guesses, targets = ranked[:max_guesses], ranked[:max_targets]
+        weights = {word: weight(word) for word in targets}
+    else:
+        guesses = candidates if len(candidates) <= max_guesses else random.sample(candidates, max_guesses)
+        targets = candidates if len(candidates) <= max_targets else random.sample(candidates, max_targets)
+        weights = None
+    return max(guesses, key=lambda g: entropy_of_guess(g, targets, weights))
+
+# Use word frequencies when word_frequencies.json is available
+DEFAULT_WEIGHT = word_weight if FREQUENCIES else None
 
 # Wordle Solver Function
 def wordle_solver():
@@ -102,7 +130,7 @@ def wordle_solver():
                     break
             elif choice == 'no':
                 # Make a guess (highest expected information among the possible words)
-                guess = best_guess(possible_words)
+                guess = best_guess(possible_words, DEFAULT_WEIGHT)
                 print(f"Attempt {attempts}: Guessing '{guess}'")
                 break
             else:
@@ -126,7 +154,7 @@ def wordle_solver():
                         break
                 elif choice == 'no':
                     # Make a guess (highest expected information among the possible words)
-                    guess = best_guess(possible_words)
+                    guess = best_guess(possible_words, DEFAULT_WEIGHT)
                     print(f"Attempt {attempts}: Guessing '{guess}'")
                     continue
                 else:
@@ -162,7 +190,7 @@ def wordle_solver():
             # Reset possible words and make a new guess
             possible_words = [word for word in WORD_LIST.keys() if len(word) == word_length]
             if possible_words:
-                guess = best_guess(possible_words)
+                guess = best_guess(possible_words, DEFAULT_WEIGHT)
                 print(f"New guess: '{guess}'")
                 # Ask if the user wants to keep this new guess
                 while True:
