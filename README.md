@@ -14,11 +14,16 @@ Interactive Python helper that narrows down the possible answers of a Wordle gam
 
 When fewer than 100 candidates remain, they are printed. For speed, only the 200 most likely candidates are tried as guesses and scored against the 1,000 most likely answers.
 
-## Run
+## Try it online
+**https://eloigomez.github.io/wordle-solver/** — a web version (JavaScript port of the solver, in `docs/`):
+- **Help me solve:** type the guess you played, click the tiles to set the colours Wordle gave you, and get the next suggestion plus the most likely answers.
+- **Watch it solve:** enter a secret word (or pick a random one) and watch the solver find it step by step.
+
+## Run in the terminal
 ```bash
 python main_wordle_game_solver.py
 ```
-No external packages are needed. `make_word_frequencies.py` regenerates `word_frequencies.json` (it needs `pip install wordfreq`).
+No external packages are needed. `make_word_frequencies.py` regenerates `word_frequencies.json` (it needs `pip install wordfreq`), and `make_web_words.py` regenerates the word list used by the web version.
 
 ## Results
 Average attempts on 5-letter words (300 simulated games, same secret words for every strategy). The secret words are drawn from the 2,500 most frequent 5-letter words, similar to the common words Wordle uses:
@@ -32,5 +37,6 @@ Average attempts on 5-letter words (300 simulated games, same secret words for e
 Other weight exponents (0.25 and 1.0) gave 3.78 and 3.80, so the result is not very sensitive to it. If the secret is a very rare word, the weighted solver does worse than the uniform one, because it assumes common words are more likely.
 
 ## Notes
-- The entropy-based guess selection, the word-frequency weighting and the repeated-letter fix in `get_feedback` were written with AI assistance (Claude Code); the original solver and the Discord bots are my own code.
+- The entropy-based guess selection, the word-frequency weighting, the web version and the repeated-letter fix in `get_feedback` were written with AI assistance (Claude Code); the original terminal solver and the Discord bots are my own code.
+- The JavaScript version gives the same first guess (`share`) and about 3.8 attempts on average in the same kind of simulation.
 - Ideas: evaluate all guesses instead of a subset, combine entropy with the probability that the guess itself is the answer, or look two steps ahead.

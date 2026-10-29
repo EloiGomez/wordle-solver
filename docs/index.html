@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wordle Solver</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1a1b; --muted: #6b6b6b; --line: #d3d6da; --card: #f6f7f8;
+    --green: #6aaa64; --yellow: #c9b458; --gray: #787c7e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121213; --fg: #f4f4f5; --muted: #a0a0a5; --line: #3a3a3c; --card: #1b1b1d; --gray: #3a3a3c; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.45; }
+  main { max-width: 520px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .tabs button { flex: 1; padding: 10px; border: 1px solid var(--line); background: var(--card); color: var(--fg); border-radius: 8px; font: inherit; cursor: pointer; }
+  .tabs button[aria-selected="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .tile { width: 52px; height: 52px; display: grid; place-items: center; font-size: 1.6rem; font-weight: 700; text-transform: uppercase; color: #fff; border: 0; border-radius: 4px; padding: 0; }
+  .tile.green { background: var(--green); } .tile.yellow { background: var(--yellow); } .tile.gray { background: var(--gray); }
+  button.tile { cursor: pointer; }
+  .tile:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid #4c8bf5; outline-offset: 2px; }
+  .remaining { margin-left: auto; color: var(--muted); font-size: .85rem; white-space: nowrap; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin: 16px 0; }
+  .suggest { font-size: 1.1rem; }
+  .suggest b { font-size: 1.4rem; letter-spacing: 2px; text-transform: uppercase; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 12px 0; }
+  input[type=text] { padding: 10px; font: inherit; font-size: 1.1rem; letter-spacing: 3px; text-transform: uppercase; width: 8.5em; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
+  .btn { padding: 10px 14px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; font: inherit; cursor: pointer; }
+  .btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .hint { color: var(--muted); font-size: .85rem; margin: 6px 0 0; }
+  .msg { color: #c0392b; min-height: 1.3em; margin: 6px 0 0; }
+  ol.top { padding-left: 1.4em; margin: 6px 0 0; columns: 2; }
+  ol.top li { break-inside: avoid; }
+  .done { font-weight: 700; color: var(--green); }
+  footer { color: var(--muted); font-size: .8rem; margin-top: 32px; }
+  footer a { color: inherit; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Wordle Solver</h1>
+  <p class="sub">Suggests the next guess with the highest expected information, weighting each word by how common it is.</p>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-help" aria-selected="true">Help me solve</button>
+    <button role="tab" id="tab-demo" aria-selected="false">Watch it solve</button>
+  </div>
+
+  <section id="help">
+    <div id="history"></div>
+    <div class="panel">
+      <div id="status" class="suggest">Loading words…</div>
+      <div id="entry">
+        <div class="controls">
+          <input type="text" id="guess" maxlength="5" autocomplete="off" aria-label="Your 5-letter guess" placeholder="guess">
+          <button class="btn" id="useSuggestion" disabled>Use suggestion</button>
+        </div>
+        <div class="row" id="tiles" aria-label="Feedback for your guess"></div>
+        <p class="hint">Type the guess you played, then click each tile to match the colours Wordle gave you: gray → yellow → green.</p>
+        <div class="controls"><button class="btn primary" id="add">Add feedback</button><button class="btn" id="reset">Start over</button></div>
+        <p class="msg" id="msg" role="status"></p>
+      </div>
+    </div>
+    <div id="topWrap" hidden>
+      <strong>Most likely answers</strong>
+      <ol class="top" id="top"></ol>
+    </div>
+  </section>
+
+  <section id="demo" hidden>
+    <div class="panel">
+      <div class="controls">
+        <input type="text" id="secret" maxlength="5" autocomplete="off" aria-label="Secret word" placeholder="secret">
+        <button class="btn primary" id="solveBtn" disabled>Solve it</button>
+        <button class="btn" id="randomBtn" disabled>Random word</button>
+      </div>
+      <p class="hint">Type a 5-letter word (or pick a random common one) and watch the solver find it.</p>
+      <p class="msg" id="demoMsg" role="status"></p>
+    </div>
+    <div id="demoRows"></div>
+  </section>
+
+  <footer>
+    Built with AI assistance (Claude Code). The solver is a JavaScript port of
+    <a href="https://github.com/EloiGomez/wordle-solver">github.com/EloiGomez/wordle-solver</a>.
+  </footer>
+</main>
+
+<script src="solver.js"></script>
+<script>
+const S = WordleSolver;
+const $ = id => document.getElementById(id);
+const NAMES = { r: 'gray', y: 'yellow', g: 'green' };
+const NEXT = { r: 'y', y: 'g', g: 'r' };
+
+let all = [], words = new Set(), firstGuess = null;
+let cands = [], rows = [], cur = ['r', 'r', 'r', 'r', 'r'], suggestion = null, solved = false;
+
+const tileHtml = (letter, color) => `<div class="tile ${NAMES[color]}" aria-label="${letter}, ${NAMES[color]}">${letter}</div>`;
+const rowHtml = (guess, fb, note) =>
+  `<div class="row">${[...guess].map((l, i) => tileHtml(l, fb[i])).join('')}<span class="remaining">${note}</span></div>`;
+
+// ---------- Help me solve ----------
+function renderHelp() {
+  $('history').innerHTML = rows.map(r => rowHtml(r.guess, r.fb, `${r.remaining.toLocaleString()} left`)).join('');
+  $('entry').hidden = solved;
+  if (solved) {
+    $('status').innerHTML = `<span class="done">Solved in ${rows.length} ${rows.length === 1 ? 'guess' : 'guesses'}!</span>`;
+  } else if (!suggestion) {
+    $('status').textContent = 'Thinking…';
+  } else {
+    $('status').innerHTML = `${cands.length.toLocaleString()} possible words · suggested guess: <b>${suggestion.word}</b>`;
+  }
+  $('useSuggestion').disabled = !suggestion || solved;
+
+  const total = cands.reduce((s, c) => s + c.weight, 0);
+  const top = [...cands].sort((a, b) => b.weight - a.weight).slice(0, 8);
+  $('topWrap').hidden = solved || cands.length === 0 || cands.length === all.length;
+  $('top').innerHTML = top.map(c => `<li>${c.word} <span class="hint">${(100 * c.weight / total).toFixed(1)}%</span></li>`).join('');
+}
+
+function renderTiles() {
+  const letters = $('guess').value.toLowerCase().padEnd(5, ' ');
+  $('tiles').innerHTML = [...letters].map((l, i) =>
+    `<button type="button" class="tile ${NAMES[cur[i]]}" data-i="${i}" aria-label="Letter ${i + 1}: ${l.trim() || 'empty'}, ${NAMES[cur[i]]}. Click to change colour.">${l.trim()}</button>`).join('');
+}
+
+function computeSuggestion() {
+  suggestion = null;
+  renderHelp();
+  setTimeout(() => { suggestion = cands === all ? firstGuess : S.bestGuess(cands); renderHelp(); }, 20);
+}
+
+function addRow() {
+  const guess = $('guess').value.toLowerCase();
+  if (!/^[a-z]{5}$/.test(guess)) return ($('msg').textContent = 'Enter a 5-letter guess.');
+  const fb = cur.join('');
+  const next = S.filterWords(cands, guess, fb);
+  if (!next.length) return ($('msg').textContent = 'No word in the list matches that feedback. Check the colours.');
+  $('msg').textContent = '';
+  cands = next;
+  rows.push({ guess, fb, remaining: next.length });
+  cur = ['r', 'r', 'r', 'r', 'r'];
+  $('guess').value = '';
+  renderTiles();
+  solved = fb === 'ggggg';
+  solved ? renderHelp() : computeSuggestion();
+}
+
+function resetHelp() {
+  cands = all; rows = []; solved = false; cur = ['r', 'r', 'r', 'r', 'r'];
+  $('guess').value = ''; $('msg').textContent = '';
+  renderTiles(); suggestion = firstGuess; renderHelp();
+}
+
+$('guess').addEventListener('input', () => { $('guess').value = $('guess').value.replace(/[^a-zA-Z]/g, ''); renderTiles(); });
+$('guess').addEventListener('keydown', e => { if (e.key === 'Enter') addRow(); });
+$('tiles').addEventListener('click', e => {
+  const t = e.target.closest('button[data-i]');
+  if (!t) return;
+  cur[+t.dataset.i] = NEXT[cur[+t.dataset.i]];
+  renderTiles();
+  $('tiles').querySelector(`[data-i="${t.dataset.i}"]`).focus();
+});
+$('useSuggestion').addEventListener('click', () => { $('guess').value = suggestion.word; renderTiles(); $('tiles').firstElementChild.focus(); });
+$('add').addEventListener('click', addRow);
+$('reset').addEventListener('click', resetHelp);
+
+// ---------- Watch it solve ----------
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let running = false;
+
+async function runDemo(secret) {
+  running = true;
+  $('solveBtn').disabled = $('randomBtn').disabled = true;
+  $('demoRows').innerHTML = '';
+  let c = all, n = 0, finished = false;
+  while (n < 10 && !finished) {
+    n++;
+    await sleep(30);
+    const guess = n === 1 ? firstGuess.word : S.bestGuess(c).word;
+    const fb = S.getFeedback(guess, secret);
+    c = S.filterWords(c, guess, fb);
+    $('demoRows').insertAdjacentHTML('beforeend', rowHtml(guess, fb, `${c.length.toLocaleString()} left`));
+    finished = fb === 'ggggg';
+    await sleep(500);
+  }
+  $('demoMsg').innerHTML = finished
+    ? `<span class="done">Found “${secret}” in ${n} ${n === 1 ? 'guess' : 'guesses'}.</span>`
+    : 'Not solved within 10 guesses.';
+  running = false;
+  $('solveBtn').disabled = $('randomBtn').disabled = false;
+}
+
+function startDemo() {
+  const secret = $('secret').value.toLowerCase();
+  if (!words.has(secret)) { $('demoMsg').textContent = 'That word is not in the list. Try another 5-letter English word.'; return; }
+  $('demoMsg').textContent = '';
+  runDemo(secret);
+}
+
+$('solveBtn').addEventListener('click', startDemo);
+$('secret').addEventListener('input', () => { $('secret').value = $('secret').value.replace(/[^a-zA-Z]/g, ''); });
+$('secret').addEventListener('keydown', e => { if (e.key === 'Enter' && !running) startDemo(); });
+$('randomBtn').addEventListener('click', () => {
+  const common = [...all].sort((a, b) => b.weight - a.weight).slice(0, 2500);
+  $('secret').value = common[Math.floor(Math.random() * common.length)].word;
+  startDemo();
+});
+
+// ---------- Tabs ----------
+function showTab(name) {
+  for (const t of ['help', 'demo']) {
+    $(t).hidden = t !== name;
+    $('tab-' + t).setAttribute('aria-selected', String(t === name));
+  }
+}
+$('tab-help').addEventListener('click', () => showTab('help'));
+$('tab-demo').addEventListener('click', () => showTab('demo'));
+
+// ---------- Start ----------
+renderTiles();
+fetch('words5.txt')
+  .then(r => r.text())
+  .then(text => {
+    all = S.parseWords(text);
+    words = new Set(all.map(c => c.word));
+    cands = all;
+    setTimeout(() => {
+      firstGuess = S.bestGuess(all);
+      suggestion = firstGuess;
+      $('solveBtn').disabled = $('randomBtn').disabled = false;
+      renderHelp();
+    }, 20);
+  })
+  .catch(() => { $('status').textContent = 'Could not load the word list. Open this page through a web server (for example GitHub Pages).'; });
+</script>
+</body>
+</html>
