@@ -16,7 +16,7 @@ When fewer than 100 candidates remain, they are printed. For speed, only the 200
 
 ## Try it online
 **https://eloigomez.github.io/wordle-solver/** — a web version (JavaScript port of the solver, in `docs/`):
-- **Play:** a Wordle-style game with a random common word, on-screen and physical keyboard, and 6 guesses. At any point you can press **Best suggestion** to fill in the solver's best guess, or **Solve it for me** to watch the solver finish the game.
+- **Play:** a Wordle-style game with a random common word, on-screen and physical keyboard, and 6 guesses. At any point you can press **Best suggestion** to fill in the solver's best guess, or **Solve it for me** to watch the solver finish the game. **Likely words** opens a panel (beside the board on wide screens) with the most likely answers and their probabilities; click one to type it in.
 - **Help me solve:** type the guess you played in the real Wordle, click the tiles to set the colours it gave you, and get the next suggestion plus the most likely answers.
 
 ## Run in the terminal

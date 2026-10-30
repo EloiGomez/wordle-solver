@@ -61,6 +61,21 @@
   .key.wide { flex: 1.6; max-width: 66px; font-size: .75rem; }
   .key.green { background: var(--green); color: #fff; } .key.yellow { background: var(--yellow); color: #fff; } .key.gray { background: var(--gray); color: #fff; }
   @media (max-width: 400px) { #board .tile { width: 52px; height: 52px; } }
+
+  /* Likely words (Play tab): below the game on narrow screens, beside it on wide ones */
+  #play { position: relative; }
+  #likely h2 { font-size: 1rem; margin: 0 0 2px; }
+  #likely ol { list-style: none; padding: 0; margin: 8px 0 0; }
+  #likely li { margin: 0 0 4px; }
+  .wordbtn { position: relative; display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 5px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--fg); font: inherit; text-align: left; cursor: pointer; overflow: hidden; }
+  .wordbtn:disabled { cursor: default; }
+  .wordbtn .bar { position: absolute; inset: 0 auto 0 0; background: var(--green); opacity: .22; border-radius: 6px; }
+  .wordbtn .w, .wordbtn .pct { position: relative; }
+  .wordbtn .w { font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+  .wordbtn .pct { color: var(--muted); font-size: .85rem; }
+  @media (min-width: 1100px) {
+    #likely { position: absolute; top: 0; left: calc(100% + 20px); width: 250px; margin: 0; }
+  }
 </style>
 </head>
 <body>
@@ -81,9 +96,15 @@
       <button class="btn" id="hintBtn" disabled>Best suggestion</button>
       <button class="btn primary" id="autoBtn" disabled>Solve it for me</button>
       <button class="btn" id="newBtn" disabled>New game</button>
+      <button class="btn" id="likelyBtn" aria-expanded="false" aria-controls="likely">Likely words</button>
     </div>
     <div id="kb" aria-label="Keyboard"></div>
     <p class="hint" id="leftInfo" style="text-align:center"></p>
+    <aside class="panel" id="likely" hidden>
+      <h2>Most likely answers</h2>
+      <p class="hint" id="likelyNote"></p>
+      <ol id="likelyList"></ol>
+    </aside>
   </section>
 
   <!-- Help me solve -->
@@ -139,13 +160,35 @@ function newGame() {
   game = {
     id: (game ? game.id : 0) + 1,
     secret: common[Math.floor(Math.random() * common.length)].word,
-    guesses: [], current: '', cands: all, letters: {}, over: false, busy: false,
+    guesses: [], current: '', cands: all, shown: all, letters: {}, over: false, busy: false,
   };
   say('Guess the word: type it, or ask for a suggestion.');
   buildBoard();
   buildKeyboard();
   setButtons();
+  renderLikely();
   $('leftInfo').textContent = '';
+}
+
+// Words that could still be the answer, most likely first (clicking one types it in).
+// Uses `shown`, which only catches up with the candidates once a row has been revealed,
+// so the list never gives away a row that is still flipping.
+function renderLikely() {
+  if (!game) return;
+  const list = game.shown, note = $('likelyNote');
+  if (list === all) {
+    note.textContent = 'Make your first guess and the most likely answers will show up here.';
+    $('likelyList').innerHTML = '';
+    return;
+  }
+  const total = list.reduce((s, c) => s + c.weight, 0);
+  const top = [...list].sort((a, b) => b.weight - a.weight).slice(0, 10);
+  const best = top[0].weight;
+  note.textContent = game.over ? '' : 'Click a word to type it in.';
+  $('likelyList').innerHTML = top.map(c =>
+    `<li><button class="wordbtn" data-w="${c.word}"${game.over ? ' disabled' : ''}>` +
+    `<span class="bar" style="width:${(100 * c.weight / best).toFixed(0)}%"></span>` +
+    `<span class="w">${c.word}</span><span class="pct">${(100 * c.weight / total).toFixed(1)}%</span></button></li>`).join('');
 }
 
 function setButtons() {
@@ -235,6 +278,7 @@ async function submit() {
     if (!game.letters[ch] || RANK[fb[c]] > RANK[game.letters[ch]]) game.letters[ch] = fb[c];
   }
   buildKeyboard();
+  game.shown = game.cands;
   const n = game.guesses.length;
   if (fb === 'ggggg') {
     game.over = true;
@@ -249,6 +293,7 @@ async function submit() {
   }
   game.busy = false;
   setButtons();
+  renderLikely();
 }
 
 // Best guess for the current state (the first one is precomputed)
@@ -299,6 +344,17 @@ $('kb').addEventListener('click', e => {
 $('hintBtn').addEventListener('click', hint);
 $('autoBtn').addEventListener('click', solveForMe);
 $('newBtn').addEventListener('click', newGame);
+$('likelyBtn').addEventListener('click', () => {
+  const open = $('likely').hidden;
+  $('likely').hidden = !open;
+  $('likelyBtn').setAttribute('aria-expanded', String(open));
+});
+$('likelyList').addEventListener('click', e => {
+  const b = e.target.closest('button[data-w]');
+  if (!b || !game || game.over || game.busy) return;
+  game.current = b.dataset.w;
+  buildBoard();
+});
 
 // ================= Help me solve =================
 let cands = [], rows = [], cur = ['r', 'r', 'r', 'r', 'r'], suggestion = null, solved = false;
