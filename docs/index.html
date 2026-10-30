@@ -363,7 +363,8 @@ function renderHelp() {
   $('history').innerHTML = rows.map(r => rowHtml(r.guess, r.fb, `${r.remaining.toLocaleString()} left`)).join('');
   $('entry').hidden = solved;
   if (solved) {
-    $('status').innerHTML = `<span class="done">Solved in ${rows.length} ${rows.length === 1 ? 'guess' : 'guesses'}!</span>`;
+    $('status').innerHTML = `<span class="done">Solved in ${rows.length} ${rows.length === 1 ? 'guess' : 'guesses'}!</span>
+      <div class="controls"><button class="btn primary" id="again">Solve another word</button></div>`;
   } else if (!suggestion) {
     $('status').textContent = 'Thinking…';
   } else {
@@ -423,6 +424,7 @@ $('tiles').addEventListener('click', e => {
 $('useSuggestion').addEventListener('click', () => { $('guess').value = suggestion.word; renderTiles(); $('tiles').firstElementChild.focus(); });
 $('add').addEventListener('click', addRow);
 $('reset').addEventListener('click', resetHelp);
+$('status').addEventListener('click', e => { if (e.target.id === 'again') resetHelp(); });
 
 // ================= Tabs =================
 function showTab(name) {
