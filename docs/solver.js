@@ -62,7 +62,28 @@ function entropyOfGuess(guess, targets) {
   return h;
 }
 
-// The guess with the highest entropy. For speed, only the 200 most likely candidates are tried as guesses
+// Entropy alone ignores that a guess can also be the answer. Score = entropy + WIN_BONUS * P(guess is the answer),
+// so a likely word wins over a rare one that splits the candidates just as well. 0 = pure entropy.
+// 2 was the best of 0, 0.5, 1, 2, 3 and 5 in simulation.
+const WIN_BONUS = 2;
+
+function scoreOfGuess(guess, targets) {
+  const counts = new Map();
+  let total = 0;
+  for (const t of targets) {
+    const pattern = getFeedback(guess, t.word);
+    counts.set(pattern, (counts.get(pattern) || 0) + t.weight);
+    total += t.weight;
+  }
+  let h = 0;
+  for (const n of counts.values()) {
+    const p = n / total;
+    h -= p * Math.log2(p);
+  }
+  return h + WIN_BONUS * (counts.get('g'.repeat(guess.length)) || 0) / total;
+}
+
+// The guess with the highest score. For speed, only the 200 most likely candidates are tried as guesses
 // and scored against the 1,000 most likely answers.
 function bestGuess(candidates, maxGuesses = 200, maxTargets = 1000) {
   const ranked = [...candidates].sort((a, b) => b.weight - a.weight);
@@ -70,7 +91,7 @@ function bestGuess(candidates, maxGuesses = 200, maxTargets = 1000) {
   const targets = ranked.slice(0, maxTargets);
   let best = null;
   for (const g of ranked.slice(0, maxGuesses)) {
-    const entropy = entropyOfGuess(g.word, targets);
+    const entropy = scoreOfGuess(g.word, targets);
     if (best === null || entropy > best.entropy) best = { word: g.word, entropy };
   }
   return best;

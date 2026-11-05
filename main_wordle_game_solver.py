@@ -55,15 +55,31 @@ def get_feedback(guess, secret):
 def filter_words(possible_words, guess, feedback):
     return [word for word in possible_words if get_feedback(guess, word) == feedback]
 
-# Expected information (in bits) of a guess: how evenly it splits the candidates into feedback patterns.
-# H = -sum(p * log2(p)), where p is the (weighted) share of candidates that would give each pattern.
+# How much the (weighted) share of candidates that would give each feedback pattern.
 # `weights` maps each word to how likely it is to be the answer; without it all words count the same.
-def entropy_of_guess(guess, candidates, weights=None):
+def feedback_counts(guess, candidates, weights=None):
     counts = Counter()
     for word in candidates:
         counts[get_feedback(guess, word)] += weights[word] if weights else 1
+    return counts
+
+# Expected information (in bits) of a guess: how evenly it splits the candidates into feedback patterns.
+# H = -sum(p * log2(p)), where p is the (weighted) share of candidates that would give each pattern.
+def entropy_of_guess(guess, candidates, weights=None):
+    counts = feedback_counts(guess, candidates, weights)
     total = sum(counts.values())
     return -sum((n / total) * math.log2(n / total) for n in counts.values())
+
+# Entropy alone ignores that a guess can also be the answer. Score = entropy + WIN_BONUS * P(guess is the answer),
+# so a likely word wins over a rare one that splits the candidates just as well. 0 = pure entropy.
+# 2 was the best of 0, 0.5, 1, 2, 3 and 5 in simulation (see the README); 3 gave almost the same.
+WIN_BONUS = 2
+
+def score_of_guess(guess, candidates, weights=None):
+    counts = feedback_counts(guess, candidates, weights)
+    total = sum(counts.values())
+    entropy = -sum((n / total) * math.log2(n / total) for n in counts.values())
+    return entropy + WIN_BONUS * counts['g' * len(guess)] / total
 
 # Choose the guess with the highest entropy. To keep it fast with large word lists, only some candidates are
 # tried as guesses and scored against some possible answers: with `weight` (a function word -> likelihood)
@@ -79,7 +95,7 @@ def best_guess(candidates, weight=None, max_guesses=200, max_targets=1000):
         guesses = candidates if len(candidates) <= max_guesses else random.sample(candidates, max_guesses)
         targets = candidates if len(candidates) <= max_targets else random.sample(candidates, max_targets)
         weights = None
-    return max(guesses, key=lambda g: entropy_of_guess(g, targets, weights))
+    return max(guesses, key=lambda g: score_of_guess(g, targets, weights))
 
 # Use word frequencies when word_frequencies.json is available
 DEFAULT_WEIGHT = word_weight if FREQUENCIES else None

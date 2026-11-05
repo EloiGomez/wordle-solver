@@ -119,7 +119,7 @@
         </div>
         <div class="row" id="tiles" aria-label="Feedback for your guess"></div>
         <p class="hint">Type the guess you played, then click each tile to match the colours Wordle gave you: gray → yellow → green.</p>
-        <div class="controls"><button class="btn primary" id="add">Add feedback</button><button class="btn" id="reset">Start over</button></div>
+        <div class="controls"><button class="btn primary" id="add">Add feedback</button><button class="btn" id="undo" disabled>Undo last row</button><button class="btn" id="reset">Start over</button></div>
         <p class="msg err" id="msg" role="status"></p>
       </div>
     </div>
@@ -364,13 +364,14 @@ function renderHelp() {
   $('entry').hidden = solved;
   if (solved) {
     $('status').innerHTML = `<span class="done">Solved in ${rows.length} ${rows.length === 1 ? 'guess' : 'guesses'}!</span>
-      <div class="controls"><button class="btn primary" id="again">Solve another word</button></div>`;
+      <div class="controls"><button class="btn primary" id="again">Solve another word</button><button class="btn" id="undoSolved">Undo last row</button></div>`;
   } else if (!suggestion) {
     $('status').textContent = 'Thinking…';
   } else {
     $('status').innerHTML = `${cands.length.toLocaleString()} possible words · suggested guess: <b>${suggestion.word}</b>`;
   }
   $('useSuggestion').disabled = !suggestion || solved;
+  $('undo').disabled = rows.length === 0;
 
   const total = cands.reduce((s, c) => s + c.weight, 0);
   const top = [...cands].sort((a, b) => b.weight - a.weight).slice(0, 8);
@@ -397,13 +398,24 @@ function addRow() {
   const next = S.filterWords(cands, guess, fb);
   if (!next.length) return ($('msg').textContent = 'No word in the list matches that feedback. Check the colours.');
   $('msg').textContent = '';
+  rows.push({ guess, fb, remaining: next.length, before: cands });
   cands = next;
-  rows.push({ guess, fb, remaining: next.length });
   cur = ['r', 'r', 'r', 'r', 'r'];
   $('guess').value = '';
   renderTiles();
   solved = fb === 'ggggg';
   solved ? renderHelp() : computeSuggestion();
+}
+
+// Takes back the last row and puts its guess and colours in the entry, ready to be corrected
+function undoRow() {
+  const last = rows.pop();
+  if (!last) return;
+  cands = last.before; solved = false;
+  $('guess').value = last.guess; cur = [...last.fb];
+  $('msg').textContent = '';
+  renderTiles();
+  if (cands === all) { suggestion = firstGuess; renderHelp(); } else computeSuggestion();
 }
 
 function resetHelp() {
@@ -424,7 +436,11 @@ $('tiles').addEventListener('click', e => {
 $('useSuggestion').addEventListener('click', () => { $('guess').value = suggestion.word; renderTiles(); $('tiles').firstElementChild.focus(); });
 $('add').addEventListener('click', addRow);
 $('reset').addEventListener('click', resetHelp);
-$('status').addEventListener('click', e => { if (e.target.id === 'again') resetHelp(); });
+$('undo').addEventListener('click', undoRow);
+$('status').addEventListener('click', e => {
+  if (e.target.id === 'again') resetHelp();
+  else if (e.target.id === 'undoSolved') undoRow();
+});
 
 // ================= Tabs =================
 function showTab(name) {
